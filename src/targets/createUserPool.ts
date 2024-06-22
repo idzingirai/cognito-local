@@ -12,10 +12,6 @@ import { Target } from "./Target";
 const REGION = "local";
 const ACCOUNT_ID = "local";
 
-const generator = shortUUID(
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-);
-
 export type CreateUserPoolTarget = Target<
   CreateUserPoolRequest,
   CreateUserPoolResponse
@@ -75,7 +71,7 @@ export const CreateUserPool =
   ({ cognito, clock }: CreateUserPoolServices): CreateUserPoolTarget =>
   async (ctx, req) => {
     const now = clock.get();
-    const userPoolId = `${REGION}_${generator.new().slice(0, 8)}`;
+    const userPoolId = req.UserPoolTags?._custom_id_ ?? `${REGION}_test`;
     const userPool = await cognito.createUserPool(ctx, {
       AccountRecoverySetting: req.AccountRecoverySetting,
       AdminCreateUserConfig: req.AdminCreateUserConfig,

@@ -1,10 +1,8 @@
 ### This workflow has access to secrets and a read-write token
 name: Publish
 on:
-  workflow_run:
+  push:
     branches: [master]
-    types: [completed]
-    workflows: [CI]
 
 jobs:
   # Why do we need to build here as well as in the main CI pipeline? Because the actions/download-artifact action

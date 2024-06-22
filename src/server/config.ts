@@ -6,6 +6,9 @@ import { TokenConfig } from "../services/tokenGenerator";
 import mergeWith from "lodash.mergewith";
 import { KMSConfig } from "../services/crypto";
 
+const hostname = process.env.HOST ?? "localhost";
+const port = process.env.PORT ?? "9229";
+
 export type UserPoolDefaults = Omit<
   UserPool,
   "Id" | "CreationDate" | "LastModifiedDate"
@@ -33,7 +36,7 @@ export const DefaultConfig: Config = {
   },
   TokenConfig: {
     // TODO: this needs to match the actual host/port we started the server on
-    IssuerDomain: "http://localhost:9229",
+    IssuerDomain: `http://${hostname}:${port}`,
   },
   KMSConfig: {
     credentials: {

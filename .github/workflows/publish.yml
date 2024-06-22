@@ -1,7 +1,10 @@
 ### This workflow has access to secrets and a read-write token
 name: Publish
+
 on:
   push:
+    branches: [master]
+  pull_request_target:
     branches: [master]
 
 jobs:

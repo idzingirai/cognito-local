@@ -29,7 +29,7 @@ export const CreateUserPoolClient =
       AllowedOAuthScopes: req.AllowedOAuthScopes,
       AnalyticsConfiguration: req.AnalyticsConfiguration,
       CallbackURLs: req.CallbackURLs,
-      ClientId: newId(),
+      ClientId: req.ClientName,
       ClientName: req.ClientName,
       ClientSecret: req.GenerateSecret ? newId() : undefined,
       CreationDate: clock.get(),

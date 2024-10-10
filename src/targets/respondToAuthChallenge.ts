@@ -62,6 +62,21 @@ export const RespondToAuthChallenge =
         MFACode: undefined,
         UserLastModifiedDate: clock.get(),
       });
+    } else if (req.ChallengeName === "SOFTWARE_TOKEN_MFA") {
+      if (!req.ChallengeResponses.SOFTWARE_TOKEN_MFA_CODE) {
+        throw new InvalidParameterError(
+          "Missing required parameter SOFTWARE_TOKEN_MFA_CODE"
+        );
+      }
+
+      if (req.ChallengeResponses.SOFTWARE_TOKEN_MFA_CODE !== user.MFACode) {
+        throw new CodeMismatchError();
+      }
+
+      await userPool.saveUser(ctx, {
+        ...user,
+        UserLastModifiedDate: clock.get(),
+      });
     } else if (req.ChallengeName === "NEW_PASSWORD_REQUIRED") {
       if (!req.ChallengeResponses.NEW_PASSWORD) {
         throw new InvalidParameterError(

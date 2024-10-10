@@ -12,6 +12,7 @@ import { AdminInitiateAuth } from "./adminInitiateAuth";
 import { AdminListGroupsForUser } from "./adminListGroupsForUser";
 import { AdminRemoveUserFromGroup } from "./adminRemoveUserFromGroup";
 import { AdminSetUserPassword } from "./adminSetUserPassword";
+import { AdminSetUserMFAPreference } from "./adminSetUserMFAPreference";
 import { AdminUpdateUserAttributes } from "./adminUpdateUserAttributes";
 import { ChangePassword } from "./changePassword";
 import { ConfirmForgotPassword } from "./confirmForgotPassword";
@@ -60,6 +61,7 @@ export const Targets = {
   AdminListGroupsForUser,
   AdminRemoveUserFromGroup,
   AdminSetUserPassword,
+  AdminSetUserMFAPreference,
   AdminUpdateUserAttributes,
   ChangePassword,
   ConfirmForgotPassword,

@@ -165,6 +165,21 @@ export interface UserPoolService {
     refreshToken: string,
     user: User
   ): Promise<void>;
+
+  setUserMFAPreference(
+    ctx: Context,
+    user: User,
+    mfaSettings: {
+      SMSMfaSettings?: {
+        Enabled?: boolean;
+        PreferredMfa?: boolean;
+      };
+      SoftwareTokenMfaSettings?: {
+        Enabled?: boolean;
+        PreferredMfa?: boolean;
+      };
+    }
+  ): Promise<void>;
 }
 
 export interface UserPoolServiceFactory {
@@ -485,6 +500,71 @@ export class UserPoolServiceImpl implements UserPoolService {
       ...user,
       RefreshTokens: refreshTokens,
     });
+  }
+
+  async setUserMFAPreference(
+    ctx: Context,
+    user: User,
+    mfaSettings: {
+      SMSMfaSettings?: {
+        Enabled?: boolean;
+        PreferredMfa?: boolean;
+      };
+      SoftwareTokenMfaSettings?: {
+        Enabled?: boolean;
+        PreferredMfa?: boolean;
+      };
+    }
+  ): Promise<void> {
+    ctx.logger.debug(
+      { username: user.Username, mfaSettings },
+      "UserPoolServiceImpl.setUserMfaPreference"
+    );
+
+    // Update the user's MFA settings based on the provided preferences
+    if (mfaSettings.SMSMfaSettings) {
+      user.MFAOptions = user.MFAOptions ?? [];
+      const smsOptionIndex = user.MFAOptions.findIndex(
+        (option) => option.AttributeName === "phone_number"
+      );
+
+      if (smsOptionIndex !== -1) {
+        if (mfaSettings.SMSMfaSettings.Enabled) {
+          user.MFAOptions[smsOptionIndex].DeliveryMedium = "SMS";
+        } else {
+          user.MFAOptions.splice(smsOptionIndex, 1);
+        }
+      } else if (mfaSettings.SMSMfaSettings.Enabled) {
+        user.MFAOptions.push({
+          DeliveryMedium: "SMS",
+          AttributeName: "phone_number",
+        });
+      }
+
+      user.PreferredMfaSetting = mfaSettings.SMSMfaSettings.PreferredMfa
+        ? "SMS"
+        : user.PreferredMfaSetting;
+    }
+
+    if (mfaSettings.SoftwareTokenMfaSettings) {
+      user.UserMFASettingList = user.UserMFASettingList ?? [];
+      if (mfaSettings.SoftwareTokenMfaSettings.Enabled) {
+        if (!user.UserMFASettingList.includes("SOFTWARE_TOKEN_MFA")) {
+          user.UserMFASettingList.push("SOFTWARE_TOKEN_MFA");
+        }
+      } else {
+        user.UserMFASettingList = user.UserMFASettingList.filter(
+          (setting) => setting !== "SOFTWARE_TOKEN_MFA"
+        );
+      }
+
+      user.PreferredMfaSetting = mfaSettings.SoftwareTokenMfaSettings.PreferredMfa
+        ? "SOFTWARE_TOKEN_MFA"
+        : user.PreferredMfaSetting;
+    }
+
+    // Save the user with the updated settings
+    await this.saveUser(ctx, user);
   }
 }
 

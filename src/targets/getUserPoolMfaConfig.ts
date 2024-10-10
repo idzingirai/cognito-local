@@ -24,7 +24,7 @@ export const GetUserPoolMfaConfig =
         SmsConfiguration: userPool.options.SmsConfiguration,
       },
       SoftwareTokenMfaConfiguration: {
-        Enabled: false,
+        Enabled: true,
       },
     };
   };

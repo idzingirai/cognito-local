@@ -40,40 +40,15 @@ const verifyMfaChallenge = async (
   userPool: UserPoolService,
   services: InitiateAuthServices
 ): Promise<InitiateAuthResponse> => {
-  if (!user.MFAOptions?.length) {
+  if (!user.UserMFASettingList?.length) {
     throw new NotAuthorizedError();
   }
-  const smsMfaOption = user.MFAOptions?.find(
-    (x): x is MFAOption & { DeliveryMedium: DeliveryMediumType } =>
-      x.DeliveryMedium === "SMS"
-  );
-  if (!smsMfaOption) {
-    throw new UnsupportedError("MFA challenge without SMS");
+  const softwareTokenMfaOption = user.UserMFASettingList?.includes('SOFTWARE_TOKEN_MFA');
+  if (!softwareTokenMfaOption) {
+    throw new UnsupportedError("MFA challenge without SOFTWARE_TOKEN");
   }
 
-  const deliveryDestination = attributeValue(
-    smsMfaOption.AttributeName,
-    user.Attributes
-  );
-  if (!deliveryDestination) {
-    throw new UnsupportedError(`SMS_MFA without ${smsMfaOption.AttributeName}`);
-  }
-
-  const code = services.otp();
-  await services.messages.deliver(
-    ctx,
-    "Authentication",
-    req.ClientId,
-    userPool.options.Id,
-    user,
-    code,
-    req.ClientMetadata,
-    {
-      DeliveryMedium: smsMfaOption.DeliveryMedium,
-      AttributeName: smsMfaOption.AttributeName,
-      Destination: deliveryDestination,
-    }
-  );
+  const code = "999999";
 
   await userPool.saveUser(ctx, {
     ...user,
@@ -81,12 +56,11 @@ const verifyMfaChallenge = async (
   });
 
   return {
-    ChallengeName: "SMS_MFA",
+    ChallengeName: "SOFTWARE_TOKEN_MFA",
     ChallengeParameters: {
-      CODE_DELIVERY_DELIVERY_MEDIUM: "SMS",
-      CODE_DELIVERY_DESTINATION: deliveryDestination,
       USER_ID_FOR_SRP: user.Username,
     },
+    Session: v4()
   };
 };
 
@@ -105,10 +79,6 @@ const verifyPasswordChallenge = async (
     user,
     userGroups,
     userPoolClient,
-    // The docs for the pre-token generation trigger only say that the ClientMetadata is passed as part of the
-    // AdminRespondToAuthChallenge and RespondToAuthChallenge triggers.
-    //
-    // source: https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-token-generation.html
     undefined,
     "Authentication"
   );
@@ -140,30 +110,18 @@ const userPasswordAuthFlow = async (
   services: InitiateAuthServices
 ): Promise<InitiateAuthResponse> => {
   if (!req.AuthParameters) {
-    throw new InvalidParameterError(
-      "Missing required parameter authParameters"
-    );
+    throw new InvalidParameterError("Missing required parameter authParameters");
   }
 
   let user = await userPool.getUserByUsername(ctx, req.AuthParameters.USERNAME);
 
   if (!user && services.triggers.enabled("UserMigration")) {
-    // https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-migrate-user.html
-    //
-    // Amazon Cognito invokes [the User Migration] trigger when a user does not exist in the user pool at the time
-    // of sign-in with a password, or in the forgot-password flow. After the Lambda function returns successfully,
-    // Amazon Cognito creates the user in the user pool.
     user = await services.triggers.userMigration(ctx, {
       clientId: req.ClientId,
       password: req.AuthParameters.PASSWORD,
       userAttributes: [],
       username: req.AuthParameters.USERNAME,
       userPoolId: userPool.options.Id,
-
-      // UserMigration triggered by InitiateAuth passes the request ClientMetadata as ValidationData and nothing as
-      // the ClientMetadata.
-      //
-      // Source: https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-migrate-user.html#cognito-user-pools-lambda-trigger-syntax-user-migration
       clientMetadata: undefined,
       validationData: req.ClientMetadata,
     });
@@ -196,8 +154,6 @@ const userPasswordAuthFlow = async (
   if (services.triggers.enabled("PostAuthentication")) {
     await services.triggers.postAuthentication(ctx, {
       clientId: req.ClientId,
-      // As per the InitiateAuth docs, ClientMetadata is not passed to PostAuthentication when called from InitiateAuth
-      // Source: https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_InitiateAuth.html#API_InitiateAuth_RequestSyntax
       clientMetadata: undefined,
       source: "PostAuthentication_Authentication",
       userAttributes: user.Attributes,
@@ -206,14 +162,7 @@ const userPasswordAuthFlow = async (
     });
   }
 
-  return verifyPasswordChallenge(
-    ctx,
-    user,
-    req,
-    userPool,
-    userPoolClient,
-    services
-  );
+  return verifyPasswordChallenge(ctx, user, req, userPool, userPoolClient, services);
 };
 
 const refreshTokenAuthFlow = async (
@@ -224,19 +173,14 @@ const refreshTokenAuthFlow = async (
   services: InitiateAuthServices
 ): Promise<InitiateAuthResponse> => {
   if (!req.AuthParameters) {
-    throw new InvalidParameterError(
-      "Missing required parameter authParameters"
-    );
+    throw new InvalidParameterError("Missing required parameter authParameters");
   }
 
   if (!req.AuthParameters.REFRESH_TOKEN) {
     throw new InvalidParameterError("AuthParameters REFRESH_TOKEN is required");
   }
 
-  const user = await userPool.getUserByRefreshToken(
-    ctx,
-    req.AuthParameters.REFRESH_TOKEN
-  );
+  const user = await userPool.getUserByRefreshToken(ctx, req.AuthParameters.REFRESH_TOKEN);
   if (!user) {
     throw new NotAuthorizedError();
   }
@@ -248,10 +192,6 @@ const refreshTokenAuthFlow = async (
     user,
     userGroups,
     userPoolClient,
-    // The docs for the pre-token generation trigger only say that the ClientMetadata is passed as part of the
-    // AdminRespondToAuthChallenge and RespondToAuthChallenge triggers.
-    //
-    // source: https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-token-generation.html
     undefined,
     "RefreshTokens"
   );
@@ -274,26 +214,21 @@ const refreshTokenAuthFlow = async (
 export const InitiateAuth =
   (services: InitiateAuthServices): InitiateAuthTarget =>
   async (ctx, req) => {
-    const userPool = await services.cognito.getUserPoolForClientId(
-      ctx,
-      req.ClientId
-    );
-    const userPoolClient = await services.cognito.getAppClient(
-      ctx,
-      req.ClientId
-    );
+    const userPool = await services.cognito.getUserPoolForClientId(ctx, req.ClientId);
+    const userPoolClient = await services.cognito.getAppClient(ctx, req.ClientId);
     if (!userPoolClient) {
       throw new NotAuthorizedError();
     }
 
+    let authResponse: InitiateAuthResponse;
+
     if (req.AuthFlow === "USER_PASSWORD_AUTH") {
-      return userPasswordAuthFlow(ctx, req, userPool, userPoolClient, services);
-    } else if (
-      req.AuthFlow === "REFRESH_TOKEN" ||
-      req.AuthFlow === "REFRESH_TOKEN_AUTH"
-    ) {
-      return refreshTokenAuthFlow(ctx, req, userPool, userPoolClient, services);
+      authResponse = await userPasswordAuthFlow(ctx, req, userPool, userPoolClient, services);
+    } else if (req.AuthFlow === "REFRESH_TOKEN" || req.AuthFlow === "REFRESH_TOKEN_AUTH") {
+      authResponse = await refreshTokenAuthFlow(ctx, req, userPool, userPoolClient, services);
     } else {
       throw new UnsupportedError(`InitAuth with AuthFlow=${req.AuthFlow}`);
     }
+
+    return authResponse;
   };

@@ -110,15 +110,20 @@ export const RespondToAuthChallenge =
 
     const userGroups = await userPool.listUserGroupMembership(ctx, user);
 
+    const tokens =await tokenGenerator.generate(
+      ctx,
+      user,
+      userGroups,
+      userPoolClient,
+      req.ClientMetadata,
+      "Authentication"
+    );
+
+    await userPool.storeRefreshToken(ctx, tokens.RefreshToken, user);
+
+
     return {
       ChallengeParameters: {},
-      AuthenticationResult: await tokenGenerator.generate(
-        ctx,
-        user,
-        userGroups,
-        userPoolClient,
-        req.ClientMetadata,
-        "Authentication"
-      ),
+      AuthenticationResult: tokens
     };
   };

@@ -336,11 +336,15 @@ export class CognitoServiceImpl implements CognitoService {
     userPoolId: string
   ): Promise<UserPoolService> {
     ctx.logger.debug({ userPoolId }, "CognitoServiceImpl.getUserPool");
-    return this.userPoolServiceFactory.create(ctx, this.clients, {
+    const userPoolService = await this.userPoolServiceFactory.create(ctx, this.clients, {
       ...USER_POOL_AWS_DEFAULTS,
       ...this.userPoolDefaultConfig,
       Id: userPoolId,
     });
+  
+    const users = await userPoolService.listUsers(ctx);
+    userPoolService.options.EstimatedNumberOfUsers = users.length;
+    return userPoolService;
   }
 
   public async getUserPoolForClientId(

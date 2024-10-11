@@ -192,22 +192,15 @@ const refreshTokenAuthFlow = async (
     user,
     userGroups,
     userPoolClient,
-    undefined,
+    req.ClientMetadata,
     "RefreshTokens"
   );
 
   return {
     ChallengeName: undefined,
-    Session: undefined,
+    Session: v4(),
     ChallengeParameters: undefined,
-    AuthenticationResult: {
-      AccessToken: tokens.AccessToken,
-      RefreshToken: undefined,
-      IdToken: tokens.IdToken,
-      NewDeviceMetadata: undefined,
-      TokenType: undefined,
-      ExpiresIn: undefined,
-    },
+    AuthenticationResult: tokens
   };
 };
 
